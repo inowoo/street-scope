@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>STREET SCOPE v0.6</title>
+<title>STREET SCOPE v0.7</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
 #game{width:100%;height:100%;display:block;outline:0;touch-action:none}
@@ -28,7 +28,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 #reload{display:none;position:absolute;left:50%;top:63%;transform:translateX(-50%);width:220px;height:6px;border:1px solid #fff}#reload>div{height:100%;width:0;background:#fff}
 #hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;white-space:nowrap}
 #start{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;color:#fff;background:#0a0e12d6}
-#panel{width:min(680px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}.ver{font-size:.52em;opacity:.7;font-weight:700}
+#panel{width:min(700px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}.ver{font-size:.52em;opacity:.7;font-weight:700}
 </style>
 </head>
 <body>
@@ -42,11 +42,11 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 <div id="hit"></div><div id="msg"></div><div id="reload"><div></div></div>
 <div id="hint">通常時: カーソルのみ移動　中ボタン長押し: カメラ旋回　右クリック長押し: スコープ　左クリック: 射撃　ホイール: 倍率　R: リロード</div>
 </div>
-<div id="start"><div id="panel"><h1>STREET SCOPE <span class="ver">v0.6</span></h1>
+<div id="start"><div id="panel"><h1>STREET SCOPE <span class="ver">v0.7</span></h1>
 <p>街路を見下ろし、指定されたターゲットを探して撃つカジュアル3Dスナイパーです。</p>
-<p>通常時はマウスでクロスヘアだけを画面内に動かします。画面端に行ってもカメラは自動追尾しません。</p>
-<p>カメラを動かしたいときだけ、マウス中ボタンを押しながらマウスを動かします。右クリック長押しでスコープ、ホイールで2〜8倍、左クリックで射撃、Rでリロード。</p>
-<p>街は左右・奥方向へさらに拡張し、ワイド画面でも街並みが画面を埋めやすい構成にしています。</p>
+<p>通常時はマウスでクロスヘアだけを動かし、カメラを動かしたいときだけマウス中ボタンを押しながら操作します。</p>
+<p>v0.7では道路の終端が見えないよう街をさらに拡張し、奥に複数の十字路、その先にも道路とビル街が続く構成にしました。</p>
+<p>遠景には円形の背景とスカイラインを追加し、カメラを振っても街の外側が見えにくいようにしています。車・歩行者もレーンごとに出現位置をずらし、重なりにくくしています。</p>
 <button id="startBtn">クリックして開始</button></div></div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="world.js"></script>
