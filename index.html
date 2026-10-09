@@ -13,17 +13,22 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 #missionTitle{font-size:11px;letter-spacing:.16em;opacity:.7}#missionText{margin-top:3px;font-size:19px;font-weight:900}#missionMeta{font:700 13px monospace}
 #cross{position:absolute;left:50%;top:50%;width:30px;height:30px;transform:translate(-50%,-50%)}#cross:before,#cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}
 #cross:before{left:14px;top:2px;width:2px;height:26px}#cross:after{left:2px;top:14px;width:26px;height:2px}
-#scope{display:none;position:absolute;inset:0}.mask{position:absolute;inset:0;background:radial-gradient(circle at center,transparent 0 31vmin,#000000f7 31.5vmin 100%)}
-.ring{position:absolute;left:50%;top:50%;width:62vmin;height:62vmin;transform:translate(-50%,-50%);border:2px solid #111;border-radius:50%}
-.sv,.sh{position:absolute;left:50%;top:50%;background:#111;transform:translate(-50%,-50%)}.sv{width:1px;height:56vmin}.sh{width:56vmin;height:1px}
-#zoom{position:absolute;left:50%;top:calc(50% + 34vmin);transform:translateX(-50%);font:700 13px monospace}
+#scope{display:none;position:absolute;inset:0}
+#scope .mask{position:absolute;inset:0;z-index:1;background:radial-gradient(circle at center,transparent 0 31vmin,#000000f7 31.5vmin 100%)}
+.ring{position:absolute;z-index:2;left:50%;top:50%;width:62vmin;height:62vmin;transform:translate(-50%,-50%);border:2px solid #111;border-radius:50%;box-shadow:0 0 0 1px #ffffff24 inset}
+#scopeCenter{position:absolute;z-index:2;left:50%;top:50%;width:5px;height:5px;transform:translate(-50%,-50%);border:1px solid #111;border-radius:50%;opacity:.45}
+#scopeCursor{position:absolute;z-index:3;left:50%;top:50%;width:38px;height:38px;transform:translate(-50%,-50%)}
+#scopeCursor:before,#scopeCursor:after{content:"";position:absolute;background:#111;box-shadow:0 0 1px #fff}
+#scopeCursor:before{left:18px;top:0;width:2px;height:38px}#scopeCursor:after{left:0;top:18px;width:38px;height:2px}
+#scopeCursor .dot{position:absolute;left:16px;top:16px;width:6px;height:6px;border:1px solid #111;border-radius:50%;background:#ffffff99}
+#zoom{position:absolute;z-index:3;left:50%;top:calc(50% + 34vmin);transform:translateX(-50%);font:700 13px monospace}
 #hit{display:none;position:absolute;left:50%;top:50%;width:28px;height:28px;transform:translate(-50%,-50%) rotate(45deg)}#hit:before,#hit:after{content:"";position:absolute;background:#fff}
 #hit:before{left:13px;width:2px;height:28px}#hit:after{top:13px;width:28px;height:2px}
 #msg{position:absolute;left:50%;top:34%;transform:translateX(-50%);font-size:20px;font-weight:900;opacity:0;transition:opacity .15s}
 #reload{display:none;position:absolute;left:50%;top:63%;transform:translateX(-50%);width:220px;height:6px;border:1px solid #fff}#reload>div{height:100%;width:0;background:#fff}
 #hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;white-space:nowrap}
 #start{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;color:#fff;background:#0a0e12d6}
-#panel{width:min(600px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}
+#panel{width:min(620px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -33,14 +38,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 <div class="tr">AMMO <span id="ammo">5 / 5</span><br>STREAK <span id="streak">0</span><br><span id="state">READY</span></div>
 <div id="mission"><div id="missionTitle">CURRENT MISSION</div><div id="missionText">ターゲット選定中...</div><div id="missionMeta">TIME <span id="missionTime">--</span></div></div>
 <div id="cross"></div>
-<div id="scope"><div class="ring"></div><div class="sv"></div><div class="sh"></div><div id="zoom">4.0x</div><div class="mask"></div></div>
+<div id="scope"><div class="ring"></div><div id="scopeCenter"></div><div id="scopeCursor"><div class="dot"></div></div><div id="zoom">4.0x</div><div class="mask"></div></div>
 <div id="hit"></div><div id="msg"></div><div id="reload"><div></div></div>
-<div id="hint">マウス:照準　右クリック長押し:スコープ　ホイール:倍率　左クリック:射撃　R:リロード　Esc:マウス解除</div>
+<div id="hint">マウス:照準　右クリック長押し:スコープ　スコープ内はフリーエイム　ホイール:倍率　左クリック:射撃　R:リロード</div>
 </div>
 <div id="start"><div id="panel"><h1>STREET SCOPE</h1>
 <p>街路を見下ろし、指定されたターゲットを探して撃つカジュアル3Dスナイパーです。風・重力・弾道落下はありません。</p>
-<p>右クリック長押しでスコープ、ホイールで2〜8倍、左クリックで射撃、Rでリロード。</p>
-<p>正しいターゲットで得点とストリーク増加。誤射とタイムアップは減点です。</p>
+<p>右クリック長押しでスコープ。スコープ内では照準だけを動かし、円の端まで持っていくとカメラが追従します。</p>
+<p>ホイールで2〜8倍、左クリックで射撃、Rでリロード。ターゲット色は赤・青・黄・黒・白を基本にします。</p>
 <button id="startBtn">クリックして開始</button></div></div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="world.js"></script>
