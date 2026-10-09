@@ -28,7 +28,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 #reload{display:none;position:absolute;left:50%;top:63%;transform:translateX(-50%);width:220px;height:6px;border:1px solid #fff}#reload>div{height:100%;width:0;background:#fff}
 #hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;white-space:nowrap}
 #start{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;color:#fff;background:#0a0e12d6}
-#panel{width:min(620px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}
+#panel{width:min(640px,calc(100vw - 50px));padding:28px;border:1px solid #ffffff33;border-radius:12px;background:#151a20ee}h1{margin:0 0 10px}p{line-height:1.6;color:#ddd}button{padding:10px 22px;font-size:16px;font-weight:800;border:0;border-radius:7px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -40,12 +40,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-f
 <div id="cross"></div>
 <div id="scope"><div class="ring"></div><div id="scopeCenter"></div><div id="scopeCursor"><div class="dot"></div></div><div id="zoom">4.0x</div><div class="mask"></div></div>
 <div id="hit"></div><div id="msg"></div><div id="reload"><div></div></div>
-<div id="hint">マウス:照準　右クリック長押し:スコープ　スコープ内はフリーエイム　ホイール:倍率　左クリック:射撃　R:リロード</div>
+<div id="hint">通常時: 照準を動かし、中央範囲の外でカメラ旋回　右クリック長押し:スコープ　スコープ時:マウスとカメラ直結　左クリック:射撃　R:リロード</div>
 </div>
 <div id="start"><div id="panel"><h1>STREET SCOPE</h1>
 <p>街路を見下ろし、指定されたターゲットを探して撃つカジュアル3Dスナイパーです。風・重力・弾道落下はありません。</p>
-<p>右クリック長押しでスコープ。スコープ内では照準だけを動かし、円の端まで持っていくとカメラが追従します。</p>
-<p>ホイールで2〜8倍、左クリックで射撃、Rでリロード。ターゲット色は赤・青・黄・黒・白を基本にします。</p>
+<p>通常時は照準カーソルを画面中央付近で自由に動かし、一定範囲を越えた分だけカメラが追従します。</p>
+<p>右クリック長押しでスコープ。スコープ中はマウス移動とカメラをほぼ直接同期。ホイールで2〜8倍、左クリックで射撃、Rでリロード。</p>
+<p>弾着時は地面・建物に命中エフェクト、ターゲットには破壊エフェクトと消滅演出が入ります。</p>
 <button id="startBtn">クリックして開始</button></div></div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="world.js"></script>
