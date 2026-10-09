@@ -24,43 +24,49 @@ function build(scene, mats, registerTarget, movers) {
     const l=BABYLON.MeshBuilder.CreateBox("lamp",{width:.6,height:.25,depth:.35},scene);l.position.set(sx,4.7,z);l.material=mats.white;
   }
 
-  for(let i=0;i<16;i++){
-    const side=i%2===0?-1:1, orange=i%3===0;
-    const box=BABYLON.MeshBuilder.CreateBox("crate",{size:1.4},scene);box.position.set(side*(8.8+(i%3)*.8),.82,-66+i*8.8);box.material=orange?mats.orange:mats.wall1;
-    registerTarget(box,orange?"crate":"object",25,{color:orange?"orange":"tan"});
+  function emphasize(mesh,color){
+    mesh.renderOutline=true;
+    mesh.outlineWidth=.035;
+    mesh.outlineColor=color==="black"?new BABYLON.Color3(1,1,1):new BABYLON.Color3(.05,.05,.05);
   }
 
-  const signColors=["red","blue","yellow"];
-  for(let i=0;i<7;i++){
-    const side=i%2===0?-1:1,color=signColors[i%3];
-    const s=BABYLON.MeshBuilder.CreateBox("sign",{width:1.8,height:1.2,depth:.15},scene);s.position.set(side*9.6,2.6,-55+i*18);s.material=mats[color];
-    const p=BABYLON.MeshBuilder.CreateCylinder("signPole",{diameter:.1,height:2.2},scene);p.position.set(side*9.6,1.1,-55+i*18);p.material=mats.dark;
+  for(let i=0;i<16;i++){
+    const side=i%2===0?-1:1;
+    const box=BABYLON.MeshBuilder.CreateBox("crate",{size:1.4},scene);box.position.set(side*(8.8+(i%3)*.8),.82,-66+i*8.8);box.material=i%3===0?mats.white:mats.wall1;
+    registerTarget(box,"object",25,{color:i%3===0?"white":"neutral"});
+  }
+
+  const signColors=["red","blue","yellow","black","white"];
+  for(let i=0;i<10;i++){
+    const side=i%2===0?-1:1,color=signColors[i%signColors.length];
+    const s=BABYLON.MeshBuilder.CreateBox("sign",{width:1.9,height:1.25,depth:.15},scene);s.position.set(side*9.6,2.6,-72+i*16);s.material=mats[color];emphasize(s,color);
+    const p=BABYLON.MeshBuilder.CreateCylinder("signPole",{diameter:.1,height:2.2},scene);p.position.set(side*9.6,1.1,-72+i*16);p.material=mats.dark;
     registerTarget(s,"sign",40,{color});
   }
 
-  const personColors=["red","blue","green","yellow"];
+  const personColors=["red","blue","yellow","black","white"];
   function person(id,x,z,dir){
-    const root=new BABYLON.TransformNode("person"+id,scene),color=personColors[id%4];
-    const body=BABYLON.MeshBuilder.CreateCylinder("body",{diameterTop:.55,diameterBottom:.7,height:1.25,tessellation:8},scene);
+    const root=new BABYLON.TransformNode("person"+id,scene),color=personColors[id%personColors.length];
+    const body=BABYLON.MeshBuilder.CreateCylinder("body",{diameterTop:.58,diameterBottom:.72,height:1.3,tessellation:8},scene);
     const head=BABYLON.MeshBuilder.CreateSphere("head",{diameter:.55,segments:8},scene);
     const ll=BABYLON.MeshBuilder.CreateBox("leg",{width:.22,height:.85,depth:.25},scene),lr=ll.clone("leg2");
     body.parent=head.parent=ll.parent=lr.parent=root;body.position.y=1.25;head.position.y=2.12;ll.position.set(-.18,.43,0);lr.position.set(.18,.43,0);
-    body.material=mats[color];head.material=mats.skin;ll.material=lr.material=mats.dark;root.position.set(x,.15,z);
+    body.material=mats[color];emphasize(body,color);head.material=mats.skin;ll.material=lr.material=mats.dark;root.position.set(x,.15,z);
     const parts=[body,head,ll,lr];parts.forEach(p=>registerTarget(p,"person",100,{color}));
     movers.push({kind:"person",root,parts,speed:2.1+(id%3)*.35,dir,t:id*.7,alive:true,respawn:0});
   }
-  for(let i=0;i<12;i++){const side=i%2===0?-1:1;person(i,side*(10.4+(i%3)*.45),-70+i*12,i%4<2?1:-1)}
+  for(let i=0;i<15;i++){const side=i%2===0?-1:1;person(i,side*(10.4+(i%3)*.45),-76+i*10.8,i%4<2?1:-1)}
 
-  const carColors=["red","blue","yellow","green"];
+  const carColors=["red","blue","yellow","black","white"];
   function car(id,x,z,dir){
-    const root=new BABYLON.TransformNode("car"+id,scene),color=carColors[id%4];
+    const root=new BABYLON.TransformNode("car"+id,scene),color=carColors[id%carColors.length];
     const body=BABYLON.MeshBuilder.CreateBox("carBody",{width:2.2,height:.75,depth:4.2},scene);
     const cab=BABYLON.MeshBuilder.CreateBox("carCabin",{width:1.75,height:.75,depth:1.9},scene);
-    body.parent=cab.parent=root;body.position.y=.75;cab.position.set(0,1.35,-.15*dir);body.material=mats[color];cab.material=mats.glass;root.position.set(x,0,z);if(dir<0)root.rotation.y=Math.PI;
+    body.parent=cab.parent=root;body.position.y=.75;cab.position.set(0,1.35,-.15*dir);body.material=mats[color];emphasize(body,color);cab.material=mats.glass;root.position.set(x,0,z);if(dir<0)root.rotation.y=Math.PI;
     const parts=[body,cab];parts.forEach(p=>registerTarget(p,"car",60,{color}));
     movers.push({kind:"car",root,parts,speed:5+(id%3)*1.1,dir,alive:true,respawn:0});
   }
-  for(let i=0;i<8;i++){const dir=i%2===0?1:-1;car(i,dir>0?-3.5:3.5,-78+i*21,dir)}
+  for(let i=0;i<10;i++){const dir=i%2===0?1:-1;car(i,dir>0?-3.5:3.5,-82+i*18,dir)}
 
   scene.fogMode=BABYLON.Scene.FOGMODE_LINEAR;scene.fogStart=100;scene.fogEnd=190;scene.fogColor=new BABYLON.Color3(.60,.76,.89);
 }
