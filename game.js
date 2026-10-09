@@ -1,15 +1,16 @@
 (() => {
+  const VERSION = 'v0.6';
   const $ = id => document.getElementById(id);
-  const canvas = $("game");
+  const canvas = $('game');
   const engine = new BABYLON.Engine(canvas, true);
   const scene = new BABYLON.Scene(engine);
   scene.clearColor = new BABYLON.Color4(.60, .76, .89, 1);
 
   const ui = {
-    score: $("score"), hits: $("hits"), ammo: $("ammo"), streak: $("streak"), state: $("state"),
-    scope: $("scope"), scopeCursor: $("scopeCursor"), cross: $("cross"), zoom: $("zoom"), hit: $("hit"),
-    msg: $("msg"), start: $("start"), startBtn: $("startBtn"), reload: $("reload"),
-    reloadFill: $("reload").firstElementChild, mission: $("missionText"), missionTime: $("missionTime")
+    score: $('score'), hits: $('hits'), ammo: $('ammo'), streak: $('streak'), state: $('state'),
+    scope: $('scope'), scopeCursor: $('scopeCursor'), cross: $('cross'), zoom: $('zoom'), hit: $('hit'),
+    msg: $('msg'), start: $('start'), startBtn: $('startBtn'), reload: $('reload'),
+    reloadFill: $('reload').firstElementChild, mission: $('missionText'), missionTime: $('missionTime')
   };
 
   function mat(name, hex) {
@@ -20,27 +21,28 @@
   }
 
   const mats = {
-    ground: mat("ground", "#6d745c"), road: mat("road", "#3d4146"), sidewalk: mat("sidewalk", "#a6a9aa"),
-    wall1: mat("wall1", "#c8b79e"), wall2: mat("wall2", "#9ba8b2"), wall3: mat("wall3", "#b48f79"),
-    dark: mat("dark", "#28313a"), glass: mat("glass", "#477389"), white: mat("white", "#f3f3f3"),
-    black: mat("black", "#111111"), red: mat("red", "#d92f2f"), blue: mat("blue", "#2474d8"),
-    yellow: mat("yellow", "#f2d231"), skin: mat("skin", "#d0a17f")
+    ground: mat('ground', '#6d745c'), road: mat('road', '#3d4146'), sidewalk: mat('sidewalk', '#a6a9aa'),
+    wall1: mat('wall1', '#c8b79e'), wall2: mat('wall2', '#9ba8b2'), wall3: mat('wall3', '#b48f79'),
+    dark: mat('dark', '#28313a'), glass: mat('glass', '#477389'), white: mat('white', '#f3f3f3'),
+    black: mat('black', '#111111'), red: mat('red', '#d92f2f'), blue: mat('blue', '#2474d8'),
+    yellow: mat('yellow', '#f2d231'), skin: mat('skin', '#d0a17f')
   };
 
-  const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 22.5, 67), scene);
+  const NORMAL_FOV = .93;
+  const camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(0, 24.0, 72), scene);
   camera.inputs.clear();
-  camera.fov = .86;
+  camera.fov = NORMAL_FOV;
   camera.minZ = .1;
-  camera.maxZ = 800;
+  camera.maxZ = 1000;
   scene.activeCamera = camera;
 
-  let yaw = 0, pitch = -.13, zoom = 4, scoped = false, middlePan = false;
+  let yaw = 0, pitch = -.14, zoom = 4, scoped = false, middlePan = false;
   let reloading = false, lastShot = 0, score = 0, hits = 0, ammo = 5, streak = 0, mission = null;
   let freeAimX = 0, freeAimY = 0;
   const movers = [], targets = [], hitFx = [], bullets = [], debris = [], staticRespawns = [];
 
-  const colorNames = { red: "赤", blue: "青", yellow: "黄", black: "黒", white: "白" };
-  const typeNames = { person: "人物", car: "車", sign: "看板", windowPerson: "窓の人物" };
+  const colorNames = { red: '赤', blue: '青', yellow: '黄', black: '黒', white: '白' };
+  const typeNames = { person: '人物', car: '車', sign: '看板', windowPerson: '窓の人物' };
   const missionOptions = [];
   for (const type of Object.keys(typeNames)) {
     for (const color of Object.keys(colorNames)) missionOptions.push({ type, color, label: `${typeNames[type]}【${colorNames[color]}】` });
@@ -52,14 +54,33 @@
     return mesh;
   }
 
-  const world = window.StreetScopeWorld.build(scene, mats, registerTarget, movers);
+  window.StreetScopeWorld.build(scene, mats, registerTarget, movers);
 
   function applyCamera() { camera.rotation.x = pitch; camera.rotation.y = yaw; }
-  function clampPitch() { pitch = Math.max(-.95, Math.min(.62, pitch)); }
-  function freeAimRadius() { return Math.min(window.innerWidth, window.innerHeight) * .29; }
-  function updateFreeAimCursor() { ui.cross.style.marginLeft = freeAimX + "px"; ui.cross.style.marginTop = freeAimY + "px"; }
+  function clampPitch() { pitch = Math.max(-.98, Math.min(.60, pitch)); }
+  function aimBounds() {
+    return {
+      x: Math.max(80, window.innerWidth * .47 - 24),
+      y: Math.max(80, window.innerHeight * .45 - 24)
+    };
+  }
+  function updateFreeAimCursor() {
+    ui.cross.style.marginLeft = freeAimX + 'px';
+    ui.cross.style.marginTop = freeAimY + 'px';
+  }
+  function clampFreeAim() {
+    const b = aimBounds();
+    freeAimX = Math.max(-b.x, Math.min(b.x, freeAimX));
+    freeAimY = Math.max(-b.y, Math.min(b.y, freeAimY));
+    updateFreeAimCursor();
+  }
   function resetFreeAim() { freeAimX = 0; freeAimY = 0; updateFreeAimCursor(); }
-  function hud() { ui.score.textContent = score; ui.hits.textContent = hits; ui.ammo.textContent = `${ammo} / 5`; ui.streak.textContent = streak; }
+  function hud() {
+    ui.score.textContent = score;
+    ui.hits.textContent = hits;
+    ui.ammo.textContent = `${ammo} / 5`;
+    ui.streak.textContent = streak;
+  }
   function message(text) {
     ui.msg.textContent = text;
     ui.msg.style.opacity = 1;
@@ -72,25 +93,24 @@
     do next = missionOptions[Math.floor(Math.random() * missionOptions.length)];
     while (mission && next.type === mission.type && next.color === mission.color);
     mission = { ...next, timeLeft: 22 };
-    ui.mission.textContent = mission.label + " を撃て";
+    ui.mission.textContent = mission.label + ' を撃て';
     ui.missionTime.textContent = mission.timeLeft.toFixed(1);
   }
-
   function correct(meta) { return mission && meta.targetType === mission.type && meta.color === mission.color; }
 
   function setScope(value) {
     scoped = value;
-    ui.scope.style.display = value ? "block" : "none";
-    ui.cross.style.display = value ? "none" : "block";
-    camera.fov = value ? .86 / zoom : .86;
-    ui.zoom.textContent = zoom.toFixed(1) + "x";
-    ui.scopeCursor.style.marginLeft = "0px";
-    ui.scopeCursor.style.marginTop = "0px";
+    ui.scope.style.display = value ? 'block' : 'none';
+    ui.cross.style.display = value ? 'none' : 'block';
+    camera.fov = value ? NORMAL_FOV / zoom : NORMAL_FOV;
+    ui.zoom.textContent = zoom.toFixed(1) + 'x';
+    ui.scopeCursor.style.marginLeft = '0px';
+    ui.scopeCursor.style.marginTop = '0px';
     if (value) resetFreeAim();
   }
 
   function getAimRay() {
-    if (scoped) return camera.getForwardRay(500);
+    if (scoped) return camera.getForwardRay(650);
     const rect = canvas.getBoundingClientRect();
     const sx = engine.getRenderWidth() / Math.max(1, rect.width);
     const sy = engine.getRenderHeight() / Math.max(1, rect.height);
@@ -100,16 +120,16 @@
   }
 
   function showHitMarker() {
-    ui.hit.style.marginLeft = (scoped ? 0 : freeAimX) + "px";
-    ui.hit.style.marginTop = (scoped ? 0 : freeAimY) + "px";
-    ui.hit.style.display = "block";
+    ui.hit.style.marginLeft = (scoped ? 0 : freeAimX) + 'px';
+    ui.hit.style.marginTop = (scoped ? 0 : freeAimY) + 'px';
+    ui.hit.style.display = 'block';
     clearTimeout(showHitMarker.timer);
-    showHitMarker.timer = setTimeout(() => ui.hit.style.display = "none", 120);
+    showHitMarker.timer = setTimeout(() => ui.hit.style.display = 'none', 120);
   }
 
   function impact(point, ok) {
-    const s = BABYLON.MeshBuilder.CreateSphere("fx", { diameter: ok ? .24 : .15, segments: 6 }, scene);
-    const m = new BABYLON.StandardMaterial("fxm", scene);
+    const s = BABYLON.MeshBuilder.CreateSphere('fx', { diameter: ok ? .24 : .15, segments: 6 }, scene);
+    const m = new BABYLON.StandardMaterial('fxm', scene);
     s.isPickable = false;
     s.position.copyFrom(point);
     m.emissiveColor = ok ? new BABYLON.Color3(1, .72, .2) : new BABYLON.Color3(.8, .8, .8);
@@ -121,8 +141,8 @@
   function surfaceImpact(point) {
     impact(point, false);
     for (let i = 0; i < 8; i++) {
-      const s = BABYLON.MeshBuilder.CreateSphere("dust", { diameter: .07 + (i % 3) * .025, segments: 4 }, scene);
-      const m = new BABYLON.StandardMaterial("dustMat", scene);
+      const s = BABYLON.MeshBuilder.CreateSphere('dust', { diameter: .07 + (i % 3) * .025, segments: 4 }, scene);
+      const m = new BABYLON.StandardMaterial('dustMat', scene);
       s.isPickable = false;
       s.position.copyFrom(point);
       const warm = i < 3;
@@ -130,23 +150,23 @@
       m.emissiveColor = warm ? new BABYLON.Color3(.35, .18, .04) : new BABYLON.Color3(.05, .05, .05);
       s.material = m;
       const a = (i / 8) * Math.PI * 2;
-      const spread = .9 + Math.random() * 1.0;
+      const spread = .9 + Math.random();
       debris.push({ mesh: s, mat: m, vel: new BABYLON.Vector3(Math.cos(a) * spread, .7 + Math.random() * 1.7, Math.sin(a) * spread), life: .38 + .18 * Math.random(), gravity: 4.2, fade: true });
     }
   }
 
   function colorFromMeta(meta) {
     if (!meta) return new BABYLON.Color3(.8, .8, .8);
-    if (meta.color === "red") return new BABYLON.Color3(.85, .16, .13);
-    if (meta.color === "blue") return new BABYLON.Color3(.15, .43, .84);
-    if (meta.color === "yellow") return new BABYLON.Color3(.95, .78, .12);
-    if (meta.color === "black") return new BABYLON.Color3(.08, .08, .08);
+    if (meta.color === 'red') return new BABYLON.Color3(.85, .16, .13);
+    if (meta.color === 'blue') return new BABYLON.Color3(.15, .43, .84);
+    if (meta.color === 'yellow') return new BABYLON.Color3(.95, .78, .12);
+    if (meta.color === 'black') return new BABYLON.Color3(.08, .08, .08);
     return new BABYLON.Color3(.88, .88, .88);
   }
 
   function addFragment(position, size, color, force = 1) {
-    const mesh = BABYLON.MeshBuilder.CreateBox("shard", { size }, scene);
-    const material = new BABYLON.StandardMaterial("shardMat", scene);
+    const mesh = BABYLON.MeshBuilder.CreateBox('shard', { size }, scene);
+    const material = new BABYLON.StandardMaterial('shardMat', scene);
     mesh.isPickable = false;
     mesh.position.copyFrom(position);
     material.diffuseColor = color;
@@ -188,7 +208,7 @@
     if (mover) {
       if (!mover.alive || mover.destroying) return;
       mover.destroying = true;
-      shatterParts(mover.parts, meta, point, mover.kind === "car" ? 1.45 : 1.0);
+      shatterParts(mover.parts, meta, point, mover.kind === 'car' ? 1.45 : 1.0);
       mover.parts.forEach(p => { p.setEnabled(false); p.isPickable = false; });
       mover.alive = false;
       mover.destroying = false;
@@ -200,9 +220,9 @@
     if (group) {
       if (!group.alive) return;
       group.alive = false;
-      shatterParts(group.parts, meta, point, group.kind === "sign" ? 1.25 : 1.0);
+      shatterParts(group.parts, meta, point, group.kind === 'sign' ? 1.25 : 1.0);
       group.parts.forEach(p => { p.setEnabled(false); p.isPickable = false; });
-      staticRespawns.push({ group, time: group.kind === "windowPerson" ? 5.0 : 4.0 });
+      staticRespawns.push({ group, time: group.kind === 'windowPerson' ? 5.0 : 4.0 });
       return;
     }
 
@@ -219,15 +239,15 @@
     const right = camera.getDirection(BABYLON.Axis.X).normalize();
     const up = camera.getDirection(BABYLON.Axis.Y).normalize();
     const start = ray.origin.add(ray.direction.normalize().scale(1.1)).add(right.scale(.30)).add(up.scale(-.22));
-    const mesh = BABYLON.MeshBuilder.CreateSphere("bullet", { diameter: .18, segments: 6 }, scene);
-    const material = new BABYLON.StandardMaterial("bulletMat", scene);
+    const mesh = BABYLON.MeshBuilder.CreateSphere('bullet', { diameter: .18, segments: 6 }, scene);
+    const material = new BABYLON.StandardMaterial('bulletMat', scene);
     mesh.isPickable = false;
     material.emissiveColor = new BABYLON.Color3(1, .82, .3);
     material.diffuseColor = new BABYLON.Color3(1, .9, .55);
     mesh.material = material;
     mesh.position.copyFrom(start);
     const tail = start.subtract(dir.scale(.9));
-    const trail = BABYLON.MeshBuilder.CreateLines("bulletTrail", { points: [tail, start], updatable: true }, scene);
+    const trail = BABYLON.MeshBuilder.CreateLines('bulletTrail', { points: [tail, start], updatable: true }, scene);
     trail.isPickable = false;
     trail.color = new BABYLON.Color3(1, .82, .3);
     bullets.push({ mesh, material, trail, start, end: end.clone(), dir, t: 0, duration: .18, onArrive });
@@ -236,22 +256,22 @@
   async function reload() {
     if (reloading || ammo === 5) return;
     reloading = true;
-    ui.state.textContent = "RELOADING";
-    ui.reload.style.display = "block";
+    ui.state.textContent = 'RELOADING';
+    ui.reload.style.display = 'block';
     const st = performance.now(), dur = 1150;
     await new Promise(done => {
       function f(now) {
         const p = Math.min(1, (now - st) / dur);
-        ui.reloadFill.style.width = p * 100 + "%";
+        ui.reloadFill.style.width = p * 100 + '%';
         p < 1 ? requestAnimationFrame(f) : done();
       }
       requestAnimationFrame(f);
     });
     ammo = 5;
     reloading = false;
-    ui.reload.style.display = "none";
+    ui.reload.style.display = 'none';
     ui.reloadFill.style.width = 0;
-    ui.state.textContent = "READY";
+    ui.state.textContent = 'READY';
     hud();
   }
 
@@ -270,7 +290,7 @@
 
     const ray = getAimRay();
     const pick = scene.pickWithRay(ray, m => m && m.isPickable !== false);
-    const end = pick && pick.hit && pick.pickedPoint ? pick.pickedPoint.clone() : ray.origin.add(ray.direction.scale(260));
+    const end = pick && pick.hit && pick.pickedPoint ? pick.pickedPoint.clone() : ray.origin.add(ray.direction.scale(360));
     let arrival = null;
 
     if (pick && pick.hit) {
@@ -294,7 +314,7 @@
           } else {
             score -= 50;
             streak = 0;
-            message("WRONG TARGET -50");
+            message('WRONG TARGET -50');
             disableTarget(mesh, point);
           }
           hud();
@@ -311,7 +331,7 @@
   function safeRespawnZ(m) {
     let z = m.dir > 0 ? m.worldMin + 3 : m.worldMax - 3;
     const others = movers.filter(o => o !== m && o.alive && !o.destroying && o.laneId === m.laneId);
-    for (let tries = 0; tries < 20; tries++) {
+    for (let tries = 0; tries < 30; tries++) {
       if (!others.some(o => Math.abs(o.root.position.z - z) < m.minGap * 1.4)) return z;
       z += m.dir * m.minGap * 1.6;
       if (z > m.worldMax - 5) z = m.worldMin + 3;
@@ -336,16 +356,17 @@
   ui.startBtn.onclick = () => canvas.requestPointerLock();
   canvas.onclick = () => { if (document.pointerLockElement !== canvas) canvas.requestPointerLock(); };
 
-  document.addEventListener("pointerlockchange", () => {
+  document.addEventListener('pointerlockchange', () => {
     const on = document.pointerLockElement === canvas;
-    ui.start.style.display = on ? "none" : "flex";
+    ui.start.style.display = on ? 'none' : 'flex';
     middlePan = false;
     if (!on) setScope(false);
   });
 
-  document.addEventListener("mousemove", e => {
+  document.addEventListener('mousemove', e => {
     if (document.pointerLockElement !== canvas) return;
 
+    // Scope: direct camera control.
     if (scoped) {
       const sensitivity = .0017 * (4 / zoom);
       yaw -= e.movementX * sensitivity;
@@ -355,6 +376,7 @@
       return;
     }
 
+    // Normal view + middle mouse: direct camera control.
     if (middlePan) {
       const sensitivity = .00165;
       yaw -= e.movementX * sensitivity;
@@ -364,43 +386,34 @@
       return;
     }
 
-    const speed = .95;
-    let nx = freeAimX + e.movementX * speed;
-    let ny = freeAimY + e.movementY * speed;
-    const r = freeAimRadius();
-    const len = Math.hypot(nx, ny);
-    if (len > r) {
-      const s = r / Math.max(.001, len);
-      nx *= s;
-      ny *= s;
-    }
-    freeAimX = nx;
-    freeAimY = ny;
-    updateFreeAimCursor();
+    // Normal view: move only the aiming cursor. No edge-follow camera behavior.
+    freeAimX += e.movementX * .95;
+    freeAimY += e.movementY * .95;
+    clampFreeAim();
   });
 
-  document.addEventListener("mousedown", e => {
+  document.addEventListener('mousedown', e => {
     if (document.pointerLockElement !== canvas) return;
     if (e.button === 0) shoot();
     if (e.button === 1 && !scoped) middlePan = true;
     if (e.button === 2) setScope(true);
   });
 
-  document.addEventListener("mouseup", e => {
+  document.addEventListener('mouseup', e => {
     if (e.button === 1) middlePan = false;
     if (e.button === 2) setScope(false);
   });
 
-  document.addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
-  document.addEventListener("contextmenu", e => e.preventDefault());
-  document.addEventListener("wheel", e => {
+  document.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('wheel', e => {
     if (document.pointerLockElement !== canvas) return;
     zoom = Math.max(2, Math.min(8, zoom + (e.deltaY < 0 ? .5 : -.5)));
-    ui.zoom.textContent = zoom.toFixed(1) + "x";
-    if (scoped) camera.fov = .86 / zoom;
+    ui.zoom.textContent = zoom.toFixed(1) + 'x';
+    if (scoped) camera.fov = NORMAL_FOV / zoom;
     e.preventDefault();
   }, { passive: false });
-  document.addEventListener("keydown", e => { if (e.code === "KeyR") reload(); });
+  document.addEventListener('keydown', e => { if (e.code === 'KeyR') reload(); });
 
   let last = performance.now();
   scene.onBeforeRenderObservable.add(() => {
@@ -415,7 +428,7 @@
         score -= 100;
         streak = 0;
         hud();
-        message("TIME UP -100");
+        message('TIME UP -100');
         newMission();
       }
     }
@@ -434,10 +447,9 @@
 
       m.speed = allowedSpeed(m);
       m.root.position.z += m.speed * m.dir * dt;
-      if (m.root.position.z > m.worldMax) m.root.position.z = safeRespawnZ(m);
-      if (m.root.position.z < m.worldMin) m.root.position.z = safeRespawnZ(m);
+      if (m.root.position.z > m.worldMax || m.root.position.z < m.worldMin) m.root.position.z = safeRespawnZ(m);
 
-      if (m.kind === "person") {
+      if (m.kind === 'person') {
         m.t += dt * 7;
         m.parts[2].rotation.x = Math.sin(m.t) * .45;
         m.parts[3].rotation.x = -Math.sin(m.t) * .45;
@@ -464,9 +476,7 @@
       f.s.scaling.scaleInPlace(1 + dt * 7);
       f.m.alpha = Math.max(0, f.life / .18);
       if (f.life <= 0) {
-        f.s.dispose();
-        f.m.dispose();
-        hitFx.splice(i, 1);
+        f.s.dispose(); f.m.dispose(); hitFx.splice(i, 1);
       }
     }
 
@@ -477,13 +487,10 @@
       const pos = BABYLON.Vector3.Lerp(b.start, b.end, t);
       b.mesh.position.copyFrom(pos);
       const tail = pos.subtract(b.dir.scale(.9));
-      BABYLON.MeshBuilder.CreateLines("bulletTrail", { points: [tail, pos], instance: b.trail });
+      BABYLON.MeshBuilder.CreateLines('bulletTrail', { points: [tail, pos], instance: b.trail });
       if (t >= 1) {
         if (b.onArrive) b.onArrive();
-        b.mesh.dispose();
-        b.material.dispose();
-        b.trail.dispose();
-        bullets.splice(i, 1);
+        b.mesh.dispose(); b.material.dispose(); b.trail.dispose(); bullets.splice(i, 1);
       }
     }
 
@@ -499,9 +506,7 @@
       }
       if (d.fade && d.life < .3) d.mat.alpha = Math.max(0, d.life / .3);
       if (d.life <= 0 || d.mesh.position.y < -.5) {
-        d.mesh.dispose();
-        d.mat.dispose();
-        debris.splice(i, 1);
+        d.mesh.dispose(); d.mat.dispose(); debris.splice(i, 1);
       }
     }
   });
@@ -510,14 +515,8 @@
   hud();
   newMission();
   engine.runRenderLoop(() => scene.render());
-  addEventListener("resize", () => {
-    engine.resize();
-    const r = freeAimRadius();
-    const len = Math.hypot(freeAimX, freeAimY);
-    if (len > r) {
-      freeAimX *= r / len;
-      freeAimY *= r / len;
-      updateFreeAimCursor();
-    }
-  });
+  addEventListener('resize', () => { engine.resize(); clampFreeAim(); });
+
+  // Expose version for debugging / future UI use.
+  window.STREET_SCOPE_VERSION = VERSION;
 })();
