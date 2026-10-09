@@ -1,59 +1,95 @@
 window.StreetScopeWorld = (() => {
   function build(scene, mats, registerTarget, movers) {
-    // Gameplay movers live in this range, while the visual city continues far beyond it.
-    const WORLD_MIN = -360;
-    const WORLD_MAX = 520;
-    const VISUAL_MIN = -1000;
-    const VISUAL_MAX = 1100;
+    const WORLD_MIN = -420;
+    const WORLD_MAX = 640;
+    const ROAD_MIN = -900;
+    const ROAD_MAX = 900;
+    const CITY_RADIUS = 1150;
 
     const hemi = new BABYLON.HemisphericLight('hemi', new BABYLON.Vector3(.25, 1, .15), scene);
-    hemi.intensity = .84;
+    hemi.intensity = .9;
     const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-.35, -1, -.25), scene);
-    sun.position = new BABYLON.Vector3(110, 150, 80);
-    sun.intensity = .69;
+    sun.position = new BABYLON.Vector3(120, 170, 70);
+    sun.intensity = .72;
 
-    // Huge ground and roads: road ends are intentionally placed beyond the camera's useful view.
-    const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 1800, height: 2200 }, scene);
-    ground.position.y = -.03;
-    ground.material = mats.ground;
+    BABYLON.Effect.ShadersStore.streetSkyVertexShader = `
+      precision highp float;
+      attribute vec3 position;
+      uniform mat4 worldViewProjection;
+      varying vec3 vPosition;
+      void main(void) {
+        vPosition = position;
+        gl_Position = worldViewProjection * vec4(position, 1.0);
+      }
+    `;
+    BABYLON.Effect.ShadersStore.streetSkyFragmentShader = `
+      precision highp float;
+      varying vec3 vPosition;
+      void main(void) {
+        float h = normalize(vPosition).y * 0.5 + 0.5;
+        vec3 horizon = vec3(0.76, 0.88, 0.97);
+        vec3 middle = vec3(0.43, 0.68, 0.89);
+        vec3 zenith = vec3(0.19, 0.43, 0.74);
+        vec3 c = mix(horizon, middle, smoothstep(0.30, 0.62, h));
+        c = mix(c, zenith, smoothstep(0.62, 1.00, h));
+        gl_FragColor = vec4(c, 1.0);
+      }
+    `;
+    const skyMat = new BABYLON.ShaderMaterial('streetSkyMaterial', scene, { vertex: 'streetSky', fragment: 'streetSky' }, { attributes: ['position'], uniforms: ['worldViewProjection'] });
+    skyMat.backFaceCulling = false;
+    skyMat.disableDepthWrite = true;
+    const skyBox = BABYLON.MeshBuilder.CreateBox('skyBox', { size: 2200 }, scene);
+    skyBox.material = skyMat;
+    skyBox.infiniteDistance = true;
+    skyBox.isPickable = false;
+    skyBox.applyFog = false;
 
-    const road = BABYLON.MeshBuilder.CreateGround('road', { width: 32, height: 2100 }, scene);
-    road.position.set(0, .01, 50);
-    road.material = mats.road;
+    const cityBase = BABYLON.MeshBuilder.CreateGround('cityBase', { width: 1800, height: 2100 }, scene);
+    cityBase.position.y = -.04;
+    cityBase.material = mats.sidewalk;
 
-    // Repeating cross streets make the main road read as a real city rather than one endless strip.
-    const crossStreetZ = [];
-    for (let z = -860; z <= 980; z += 140) crossStreetZ.push(z);
-    for (const z of crossStreetZ) {
-      const crossRoad = BABYLON.MeshBuilder.CreateGround('crossRoad', { width: 1500, height: 18 }, scene);
-      crossRoad.position.set(0, .012, z);
-      crossRoad.material = mats.road;
+    const mainRoad = BABYLON.MeshBuilder.CreateGround('mainRoad', { width: 32, height: ROAD_MAX - ROAD_MIN }, scene);
+    mainRoad.position.set(0, .01, (ROAD_MIN + ROAD_MAX) * .5);
+    mainRoad.material = mats.road;
 
-      // Sidewalk strips on both sides of each cross street.
-      for (const dz of [-12.0, 12.0]) {
-        const walk = BABYLON.MeshBuilder.CreateBox('crossWalk', { width: 1500, height: .24, depth: 5.5 }, scene);
-        walk.position.set(0, .12, z + dz);
+    const internalCrossings = [];
+    for (let z = -760; z <= 760; z += 140) internalCrossings.push(z);
+    const terminalCrossings = [ROAD_MIN, ROAD_MAX];
+    for (const z of [...internalCrossings, ...terminalCrossings]) {
+      const cross = BABYLON.MeshBuilder.CreateGround(z === ROAD_MIN || z === ROAD_MAX ? 'terminalRoad' : 'crossRoad', { width: 1500, height: 20 }, scene);
+      cross.position.set(0, .012, z);
+      cross.material = mats.road;
+
+      for (const dz of [-13, 13]) {
+        const walk = BABYLON.MeshBuilder.CreateBox('crossSidewalk', { width: 1500, height: .22, depth: 5 }, scene);
+        walk.position.set(0, .11, z + dz);
         walk.material = mats.sidewalk;
       }
     }
 
     for (const x of [-20, 20]) {
-      const sidewalk = BABYLON.MeshBuilder.CreateBox('sidewalk', { width: 8.5, height: .26, depth: 2100 }, scene);
-      sidewalk.position.set(x, .13, 50);
+      const sidewalk = BABYLON.MeshBuilder.CreateBox('mainSidewalk', { width: 8.5, height: .26, depth: ROAD_MAX - ROAD_MIN }, scene);
+      sidewalk.position.set(x, .13, (ROAD_MIN + ROAD_MAX) * .5);
       sidewalk.material = mats.sidewalk;
     }
 
-    for (let z = VISUAL_MIN; z <= VISUAL_MAX; z += 10) {
+    for (let z = ROAD_MIN + 10; z < ROAD_MAX - 10; z += 10) {
       const dash = BABYLON.MeshBuilder.CreateBox('dash', { width: .28, height: .04, depth: 4.6 }, scene);
       dash.position.set(0, .05, z);
       dash.material = mats.white;
     }
     for (const x of [-8, 8]) {
-      for (let z = VISUAL_MIN; z <= VISUAL_MAX; z += 13) {
+      for (let z = ROAD_MIN + 12; z < ROAD_MAX - 12; z += 13) {
         const lane = BABYLON.MeshBuilder.CreateBox('laneDash', { width: .18, height: .035, depth: 5.5 }, scene);
         lane.position.set(x, .045, z);
         lane.material = mats.white;
       }
+    }
+
+    for (const z of [ROAD_MIN + 18, ROAD_MAX - 18]) {
+      const stopBar = BABYLON.MeshBuilder.CreateBox('terminalStopBar', { width: 28, height: .045, depth: .55 }, scene);
+      stopBar.position.set(0, .055, z);
+      stopBar.material = mats.white;
     }
 
     function emphasize(mesh, color) {
@@ -94,19 +130,17 @@ window.StreetScopeWorld = (() => {
       registerTarget(head, 'windowPerson', 140, { color, destroyGroup: group });
     }
 
-    function addDetailedBuilding(side, band, i, z) {
+    function addBuilding(side, band, i, z) {
       const w = 11 + ((i + band) % 4) * 2.5;
       const d = 17 + ((i + band * 2) % 5) * 2.4;
-      const h = 18 + ((i * 2 + band) % 7) * 4.4 + band * 4;
-      const centerX = [34, 66, 104][band];
+      const h = 18 + ((i * 2 + band) % 7) * 4.4 + band * 5;
+      const centerX = [35, 68, 108][band];
       const x = side * (centerX + w * .5);
       const building = BABYLON.MeshBuilder.CreateBox('building', { width: w, height: h, depth: d }, scene);
       building.position.set(x, h / 2, z);
       building.material = buildingMats[(i + band + (side > 0 ? 1 : 0)) % buildingMats.length];
 
-      // Only the nearest row gets windows/targets to keep mesh count reasonable.
       if (band !== 0) return;
-
       const facadeX = x - side * (w / 2 + .035);
       const floorCount = Math.max(3, Math.floor(h / 3.1));
       for (let f = 1; f < floorCount; f++) {
@@ -117,8 +151,7 @@ window.StreetScopeWorld = (() => {
           win.position.set(facadeX, wy, wz);
           win.rotation.y = Math.PI / 2;
           win.material = mats.glass;
-
-          if ((i + f + c + (side > 0 ? 2 : 0)) % 10 === 0 && windowTargetId < 28) {
+          if ((i + f + c + (side > 0 ? 2 : 0)) % 10 === 0 && windowTargetId < 30) {
             const color = windowTargetColors[windowTargetId % windowTargetColors.length];
             win.isVisible = false;
             addWindowTarget(side, facadeX, wy, wz, color);
@@ -127,71 +160,54 @@ window.StreetScopeWorld = (() => {
       }
     }
 
-    // Detailed city around the playable corridor.
     for (const side of [-1, 1]) {
       for (let band = 0; band < 3; band++) {
         let i = 0;
-        for (let z = -390 + band * 9; z <= 610; z += 34) addDetailedBuilding(side, band, i++, z);
+        for (let z = ROAD_MIN + 42 + band * 9; z <= ROAD_MAX - 42; z += 34) addBuilding(side, band, i++, z);
       }
     }
 
-    // Continue the city far beyond the active gameplay area with cheaper blocks.
-    function addFarCityRow(side, xBase, zStart, zEnd, step, seed) {
-      let i = 0;
-      for (let z = zStart; z <= zEnd; z += step, i++) {
-        const w = 18 + ((i + seed) % 4) * 5;
-        const d = 22 + ((i + seed * 2) % 3) * 8;
-        const h = 28 + ((i * 3 + seed) % 8) * 8;
-        const b = BABYLON.MeshBuilder.CreateBox('farBuilding', { width: w, height: h, depth: d }, scene);
-        b.position.set(side * (xBase + w * .5), h / 2, z);
-        b.material = buildingMats[(i + seed) % buildingMats.length];
-        b.isPickable = false;
-      }
-    }
-
-    for (const side of [-1, 1]) {
-      addFarCityRow(side, 38, -930, -430, 48, 1);
-      addFarCityRow(side, 38, 650, 1040, 48, 2);
-      addFarCityRow(side, 88, -940, 1040, 62, 3);
-      addFarCityRow(side, 145, -940, 1040, 76, 4);
-    }
-
-    // City blocks along several major cross streets, so looking left/right also stays urban.
-    for (let zi = 0; zi < crossStreetZ.length; zi++) {
-      const z = crossStreetZ[zi];
+    for (let zi = 0; zi < internalCrossings.length; zi++) {
+      const z = internalCrossings[zi];
       for (const sideX of [-1, 1]) {
-        for (let n = 0; n < 9; n++) {
-          const xAbs = 185 + n * 54;
-          const w = 28 + ((n + zi) % 3) * 7;
-          const d = 27 + ((n + zi * 2) % 3) * 6;
-          const h = 32 + ((n * 2 + zi) % 7) * 9;
+        for (let n = 0; n < 11; n++) {
+          const xAbs = 175 + n * 52;
+          const w = 26 + ((n + zi) % 3) * 7;
+          const d = 28 + ((n + zi * 2) % 3) * 6;
+          const h = 30 + ((n * 2 + zi) % 7) * 9;
           const b = BABYLON.MeshBuilder.CreateBox('crossCity', { width: w, height: h, depth: d }, scene);
-          b.position.set(sideX * xAbs, h / 2, z + ((n % 2) ? 30 : -30));
+          b.position.set(sideX * xAbs, h / 2, z + ((n % 2) ? 32 : -32));
           b.material = buildingMats[(n + zi) % buildingMats.length];
           b.isPickable = false;
         }
       }
     }
 
-    // Circular backdrop / kakIwari: a sky cylinder and a ring of distant skyline blocks.
-    const skyMat = new BABYLON.StandardMaterial('skyBackdropMat', scene);
-    skyMat.diffuseColor = new BABYLON.Color3(.57, .72, .82);
-    skyMat.emissiveColor = new BABYLON.Color3(.14, .19, .22);
-    skyMat.backFaceCulling = false;
-    skyMat.disableLighting = true;
-    const sky = BABYLON.MeshBuilder.CreateCylinder('skyBackdrop', { diameter: 1660, height: 300, tessellation: 64, sideOrientation: BABYLON.Mesh.DOUBLESIDE }, scene);
-    sky.position.y = 125;
-    sky.material = skyMat;
-    sky.isPickable = false;
+    for (const endZ of [ROAD_MIN, ROAD_MAX]) {
+      const beyondZ = endZ + (endZ > 0 ? 55 : -55);
+      let i = 0;
+      for (let x = -360; x <= 360; x += 42, i++) {
+        const w = 30 + (i % 3) * 5;
+        const d = 30 + (i % 2) * 7;
+        const h = 32 + (i % 7) * 8;
+        const b = BABYLON.MeshBuilder.CreateBox('terminalBlock', { width: w, height: h, depth: d }, scene);
+        b.position.set(x, h / 2, beyondZ);
+        b.material = buildingMats[i % buildingMats.length];
+        b.isPickable = false;
+      }
+    }
 
-    const skylineRadius = 700;
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * Math.PI * 2;
-      const w = 25 + (i % 4) * 8;
+    const skylineRadius = 980;
+    for (let i = 0; i < 96; i++) {
+      const a = (i / 96) * Math.PI * 2;
+      const x = Math.cos(a) * skylineRadius;
+      const z = Math.sin(a) * skylineRadius;
+      if (Math.abs(x) < 95) continue;
+      const w = 26 + (i % 4) * 8;
       const d = 24 + (i % 3) * 7;
-      const h = 45 + (i % 9) * 10;
+      const h = 42 + (i % 9) * 10;
       const b = BABYLON.MeshBuilder.CreateBox('backdropBuilding', { width: w, height: h, depth: d }, scene);
-      b.position.set(Math.cos(a) * skylineRadius, h / 2 - 2, Math.sin(a) * skylineRadius + 60);
+      b.position.set(x, h / 2 - 2, z);
       b.rotation.y = -a;
       b.material = buildingMats[i % buildingMats.length];
       b.isPickable = false;
@@ -201,8 +217,8 @@ window.StreetScopeWorld = (() => {
     ledge.position.set(0, 18.2, 56);
     ledge.material = mats.wall2;
 
-    for (const sx of [-15.0, 15.0]) {
-      for (let z = -410; z <= 610; z += 27) {
+    for (const sx of [-15, 15]) {
+      for (let z = WORLD_MIN - 30; z <= WORLD_MAX + 30; z += 27) {
         const pole = BABYLON.MeshBuilder.CreateCylinder('lampPole', { diameter: .18, height: 5.0 }, scene);
         pole.position.set(sx, 2.5, z);
         pole.material = mats.dark;
@@ -215,7 +231,7 @@ window.StreetScopeWorld = (() => {
     for (let i = 0; i < 34; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const box = BABYLON.MeshBuilder.CreateBox('crate', { size: 1.45 }, scene);
-      box.position.set(side * (15.8 + (i % 3) * 1.25), .85, -330 + i * 25.0);
+      box.position.set(side * (15.8 + (i % 3) * 1.25), .85, WORLD_MIN + 45 + i * 28.0);
       box.material = i % 4 === 0 ? mats.white : mats.wall1;
       registerTarget(box, 'object', 25, { color: i % 4 === 0 ? 'white' : 'neutral' });
     }
@@ -225,7 +241,7 @@ window.StreetScopeWorld = (() => {
       const side = i % 2 === 0 ? -1 : 1;
       const color = signColors[i % signColors.length];
       const root = new BABYLON.TransformNode('signRoot' + i, scene);
-      root.position.set(side * 15.4, 0, -320 + i * 32);
+      root.position.set(side * 15.4, 0, WORLD_MIN + 60 + i * 38);
       const sign = BABYLON.MeshBuilder.CreateBox('sign', { width: 2.0, height: 1.3, depth: .16 }, scene);
       const pole = BABYLON.MeshBuilder.CreateCylinder('signPole', { diameter: .11, height: 2.3 }, scene);
       sign.parent = pole.parent = root;
@@ -238,8 +254,24 @@ window.StreetScopeWorld = (() => {
       registerTarget(sign, 'sign', 40, { color, destroyGroup: group });
     }
 
+    const spawnRegistry = { person: [], car: [] };
+    function reserveSpawn(kind, desiredZ, globalGap) {
+      let z = desiredZ;
+      for (let tries = 0; tries < 80; tries++) {
+        if (!spawnRegistry[kind].some(v => Math.abs(v - z) < globalGap)) {
+          spawnRegistry[kind].push(z);
+          return z;
+        }
+        z += globalGap * 1.45;
+        if (z > WORLD_MAX - 25) z = WORLD_MIN + 25 + (tries % 3) * globalGap * .7;
+      }
+      spawnRegistry[kind].push(z);
+      return z;
+    }
+
     const personColors = ['red', 'blue', 'yellow', 'black', 'white'];
-    function person(id, laneX, z, dir, laneId, phase) {
+    function person(id, laneX, desiredZ, dir, laneId) {
+      const z = reserveSpawn('person', desiredZ, 4.5);
       const root = new BABYLON.TransformNode('person' + id, scene);
       const color = personColors[id % personColors.length];
       const body = BABYLON.MeshBuilder.CreateCylinder('body', { diameterTop: .58, diameterBottom: .72, height: 1.3, tessellation: 8 }, scene);
@@ -258,29 +290,24 @@ window.StreetScopeWorld = (() => {
       root.position.set(laneX, .15, z);
       const parts = [body, head, ll, lr];
       parts.forEach(p => registerTarget(p, 'person', 100, { color }));
-      const baseSpeed = 1.55 + (id % 4) * .18;
-      movers.push({ kind: 'person', root, parts, baseSpeed, speed: baseSpeed, dir, laneId, minGap: 3.2, t: id * .7, alive: true, destroying: false, respawn: 0, worldMin: WORLD_MIN + phase, worldMax: WORLD_MAX + phase, spawnY: .15 });
+      const baseSpeed = 1.5 + (id % 4) * .17;
+      movers.push({ kind: 'person', root, parts, baseSpeed, speed: baseSpeed, dir, laneId, minGap: 3.2, globalGap: 4.5, t: id * .7, alive: true, destroying: false, respawn: 0, worldMin: WORLD_MIN, worldMax: WORLD_MAX, spawnY: .15 });
     }
 
     const pedLanes = [
       { x: -17.3, dir: 1, id: 'ped-l-up', phase: 0 },
-      { x: -20.7, dir: -1, id: 'ped-l-down', phase: 19 },
-      { x: 17.3, dir: -1, id: 'ped-r-down', phase: 38 },
-      { x: 20.7, dir: 1, id: 'ped-r-up', phase: 57 },
+      { x: -20.4, dir: -1, id: 'ped-l-down', phase: 17 },
+      { x: 17.3, dir: -1, id: 'ped-r-down', phase: 34 },
+      { x: 20.4, dir: 1, id: 'ped-r-up', phase: 51 },
     ];
     let personId = 0;
-    for (let laneIndex = 0; laneIndex < pedLanes.length; laneIndex++) {
-      const lane = pedLanes[laneIndex];
-      const count = 9;
-      const span = WORLD_MAX - WORLD_MIN - 80;
-      for (let i = 0; i < count; i++) {
-        const z = WORLD_MIN + 40 + (i / count) * span + laneIndex * 21;
-        person(personId++, lane.x, z, lane.dir, lane.id, lane.phase);
-      }
+    for (const lane of pedLanes) {
+      for (let i = 0; i < 8; i++) person(personId++, lane.x, WORLD_MIN + 70 + lane.phase + i * 125, lane.dir, lane.id);
     }
 
     const carColors = ['red', 'blue', 'yellow', 'black', 'white'];
-    function car(id, laneX, z, dir, laneId, phase) {
+    function car(id, laneX, desiredZ, dir, laneId) {
+      const z = reserveSpawn('car', desiredZ, 12.5);
       const root = new BABYLON.TransformNode('car' + id, scene);
       const color = carColors[id % carColors.length];
       const body = BABYLON.MeshBuilder.CreateBox('carBody', { width: 2.25, height: .78, depth: 4.25 }, scene);
@@ -295,33 +322,27 @@ window.StreetScopeWorld = (() => {
       if (dir < 0) root.rotation.y = Math.PI;
       const parts = [body, cabin];
       parts.forEach(p => registerTarget(p, 'car', 60, { color }));
-      const baseSpeed = 6.0 + (id % 4) * .75;
-      movers.push({ kind: 'car', root, parts, baseSpeed, speed: baseSpeed, dir, laneId, minGap: 10.0, alive: true, destroying: false, respawn: 0, worldMin: WORLD_MIN + phase, worldMax: WORLD_MAX + phase, spawnY: 0 });
+      const baseSpeed = 5.8 + (id % 4) * .7;
+      movers.push({ kind: 'car', root, parts, baseSpeed, speed: baseSpeed, dir, laneId, minGap: 8.6, globalGap: 12.5, alive: true, destroying: false, respawn: 0, worldMin: WORLD_MIN, worldMax: WORLD_MAX, spawnY: 0 });
     }
 
     const carLanes = [
-      { x: -11.0, dir: 1, id: 'car-a', phase: 0 },
-      { x: -5.5, dir: 1, id: 'car-b', phase: 27 },
-      { x: 5.5, dir: -1, id: 'car-c', phase: 54 },
-      { x: 11.0, dir: -1, id: 'car-d', phase: 81 },
+      { x: -10.5, dir: 1, id: 'car-a', phase: 0 },
+      { x: -5.2, dir: 1, id: 'car-b', phase: 23 },
+      { x: 5.2, dir: -1, id: 'car-c', phase: 47 },
+      { x: 10.5, dir: -1, id: 'car-d', phase: 71 },
     ];
     let carId = 0;
-    for (let laneIndex = 0; laneIndex < carLanes.length; laneIndex++) {
-      const lane = carLanes[laneIndex];
-      const count = 7;
-      const span = WORLD_MAX - WORLD_MIN - 120;
-      for (let i = 0; i < count; i++) {
-        const z = WORLD_MIN + 60 + (i / count) * span + laneIndex * 31;
-        car(carId++, lane.x, z, lane.dir, lane.id, lane.phase);
-      }
+    for (const lane of carLanes) {
+      for (let i = 0; i < 7; i++) car(carId++, lane.x, WORLD_MIN + 80 + lane.phase + i * 145, lane.dir, lane.id);
     }
 
     scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
-    scene.fogStart = 430;
-    scene.fogEnd = 790;
-    scene.fogColor = new BABYLON.Color3(.60, .76, .89);
+    scene.fogStart = 520;
+    scene.fogEnd = 1080;
+    scene.fogColor = new BABYLON.Color3(.69, .82, .92);
 
-    return { worldMin: WORLD_MIN, worldMax: WORLD_MAX };
+    return { worldMin: WORLD_MIN, worldMax: WORLD_MAX, roadMin: ROAD_MIN, roadMax: ROAD_MAX, cityRadius: CITY_RADIUS };
   }
 
   return { build };
