@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = 'v0.6';
+  const VERSION = 'v0.8';
   const $ = id => document.getElementById(id);
   const canvas = $('game');
   const engine = new BABYLON.Engine(canvas, true);
@@ -39,7 +39,8 @@
   let yaw = 0, pitch = -.14, zoom = 4, scoped = false, middlePan = false;
   let reloading = false, lastShot = 0, score = 0, hits = 0, ammo = 5, streak = 0, mission = null;
   let freeAimX = 0, freeAimY = 0;
-  const movers = [], targets = [], hitFx = [], bullets = [], debris = [], staticRespawns = [];
+  const movers = [], targets = [], hitFx = [], bullets = [], debris = [], staticRespawns = [], bonusFlyers = [];
+  let bonusSpawnTimer = 8.0;
 
   const colorNames = { red: '赤', blue: '青', yellow: '黄', black: '黒', white: '白' };
   const typeNames = { person: '人物', car: '車', sign: '看板', windowPerson: '窓の人物' };
@@ -234,6 +235,99 @@
     }
   }
 
+  function disposeBonusFlyer(flyer, explodePoint = null) {
+    if (!flyer || !flyer.alive) return;
+    flyer.alive = false;
+    if (explodePoint) {
+      const meta = { color: 'white' };
+      shatterParts(flyer.parts, meta, explodePoint, flyer.kind === 'helicopter' ? 1.35 : 1.55);
+    }
+    for (const p of flyer.parts) {
+      p.isPickable = false;
+      if (!p.isDisposed()) p.dispose();
+    }
+    if (flyer.root && !flyer.root.isDisposed()) flyer.root.dispose();
+  }
+
+  function addBonusTargetMeta(parts, flyer) {
+    for (const p of parts) {
+      p.metadata = {
+        targetType: 'bonusAircraft',
+        bonusTarget: true,
+        bonusPoints: flyer.bonusPoints,
+        bonusLabel: flyer.kind === 'helicopter' ? 'HELICOPTER' : 'AIRPLANE',
+        bonusFlyer: flyer
+      };
+      p.isPickable = true;
+      p.renderOutline = true;
+      p.outlineWidth = .035;
+      p.outlineColor = new BABYLON.Color3(1, .88, .15);
+    }
+  }
+
+  function spawnBonusFlyer() {
+    const kind = Math.random() < .72 ? 'airplane' : 'helicopter';
+    const dir = Math.random() < .5 ? 1 : -1;
+    const root = new BABYLON.TransformNode('bonusFlyerRoot', scene);
+    const parts = [];
+
+    if (kind === 'airplane') {
+      const fuselage = BABYLON.MeshBuilder.CreateBox('bonusPlaneBody', { width: .95, height: .72, depth: 6.2 }, scene);
+      const wing = BABYLON.MeshBuilder.CreateBox('bonusPlaneWing', { width: 8.2, height: .16, depth: 1.25 }, scene);
+      const tail = BABYLON.MeshBuilder.CreateBox('bonusPlaneTail', { width: 3.0, height: .16, depth: .8 }, scene);
+      const fin = BABYLON.MeshBuilder.CreateBox('bonusPlaneFin', { width: .18, height: 1.35, depth: .9 }, scene);
+      fuselage.parent = wing.parent = tail.parent = fin.parent = root;
+      tail.position.z = -2.45;
+      fin.position.set(0, .72, -2.45);
+      fuselage.material = mats.white;
+      wing.material = mats.white;
+      tail.material = mats.red;
+      fin.material = mats.red;
+      parts.push(fuselage, wing, tail, fin);
+    } else {
+      const cabin = BABYLON.MeshBuilder.CreateBox('bonusHeliCabin', { width: 2.0, height: 1.35, depth: 2.5 }, scene);
+      const boom = BABYLON.MeshBuilder.CreateBox('bonusHeliBoom', { width: .38, height: .38, depth: 4.3 }, scene);
+      const tail = BABYLON.MeshBuilder.CreateBox('bonusHeliTail', { width: 1.7, height: .14, depth: .7 }, scene);
+      const rotor = BABYLON.MeshBuilder.CreateBox('bonusHeliRotor', { width: 7.4, height: .08, depth: .20 }, scene);
+      cabin.parent = boom.parent = tail.parent = rotor.parent = root;
+      boom.position.z = -3.0;
+      tail.position.z = -5.0;
+      rotor.position.y = 1.05;
+      cabin.material = mats.yellow;
+      boom.material = mats.dark;
+      tail.material = mats.yellow;
+      rotor.material = mats.black;
+      parts.push(cabin, boom, tail, rotor);
+      root.metadata = { rotor };
+    }
+
+    const flyer = {
+      root, parts, kind, dir,
+      speed: kind === 'helicopter' ? 18 + Math.random() * 5 : 27 + Math.random() * 8,
+      bonusPoints: kind === 'helicopter' ? 900 : 700,
+      alive: true,
+      rotor: root.metadata && root.metadata.rotor ? root.metadata.rotor : null
+    };
+    addBonusTargetMeta(parts, flyer);
+
+    root.position.set(dir > 0 ? -340 : 340, 54 + Math.random() * 34, 160 + Math.random() * 380);
+    root.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    bonusFlyers.push(flyer);
+  }
+
+  function awardBonusFlyer(mesh, point) {
+    const meta = mesh && mesh.metadata;
+    const flyer = meta && meta.bonusFlyer;
+    if (!flyer || !flyer.alive) return;
+    const pts = meta.bonusPoints || 700;
+    score += pts;
+    hits++;
+    showHitMarker();
+    message(`BONUS ${meta.bonusLabel || 'AIRCRAFT'} +${pts}`);
+    disposeBonusFlyer(flyer, point);
+    hud();
+  }
+
   function spawnBullet(ray, end, onArrive) {
     const dir = end.subtract(ray.origin).normalize();
     const right = camera.getDirection(BABYLON.Axis.X).normalize();
@@ -297,7 +391,12 @@
       const mesh = pick.pickedMesh;
       const point = pick.pickedPoint.clone();
       const meta = mesh.metadata;
-      if (meta && meta.targetType) {
+      if (meta && meta.bonusTarget) {
+        arrival = () => {
+          if (!mesh || (mesh.isDisposed && mesh.isDisposed()) || !mesh.isEnabled()) return;
+          awardBonusFlyer(mesh, point);
+        };
+      } else if (meta && meta.targetType) {
         const dist = BABYLON.Vector3.Distance(camera.position, point);
         const wasCorrect = correct(meta);
         arrival = () => {
@@ -329,13 +428,19 @@
   }
 
   function safeRespawnZ(m) {
-    let z = m.dir > 0 ? m.worldMin + 3 : m.worldMax - 3;
-    const others = movers.filter(o => o !== m && o.alive && !o.destroying && o.laneId === m.laneId);
-    for (let tries = 0; tries < 30; tries++) {
-      if (!others.some(o => Math.abs(o.root.position.z - z) < m.minGap * 1.4)) return z;
-      z += m.dir * m.minGap * 1.6;
-      if (z > m.worldMax - 5) z = m.worldMin + 3;
-      if (z < m.worldMin + 5) z = m.worldMax - 3;
+    let z = m.dir > 0 ? m.worldMin + 5 : m.worldMax - 5;
+    const others = movers.filter(o => o !== m && o.alive && !o.destroying);
+    for (let tries = 0; tries < 80; tries++) {
+      const conflict = others.some(o => {
+        const gap = Math.abs(o.root.position.z - z);
+        if (o.laneId === m.laneId && gap < m.minGap * 1.5) return true;
+        if (o.kind === m.kind && gap < (m.globalGap || 0)) return true;
+        return false;
+      });
+      if (!conflict) return z;
+      z += m.dir * Math.max(m.minGap * 1.6, (m.globalGap || 0) * 1.15);
+      if (z > m.worldMax - 5) z = m.worldMin + 5 + (tries % 3) * 7;
+      if (z < m.worldMin + 5) z = m.worldMax - 5 - (tries % 3) * 7;
     }
     return z;
   }
@@ -366,7 +471,6 @@
   document.addEventListener('mousemove', e => {
     if (document.pointerLockElement !== canvas) return;
 
-    // Scope: direct camera control.
     if (scoped) {
       const sensitivity = .0017 * (4 / zoom);
       yaw -= e.movementX * sensitivity;
@@ -376,7 +480,6 @@
       return;
     }
 
-    // Normal view + middle mouse: direct camera control.
     if (middlePan) {
       const sensitivity = .00165;
       yaw -= e.movementX * sensitivity;
@@ -386,7 +489,6 @@
       return;
     }
 
-    // Normal view: move only the aiming cursor. No edge-follow camera behavior.
     freeAimX += e.movementX * .95;
     freeAimY += e.movementY * .95;
     clampFreeAim();
@@ -430,6 +532,28 @@
         hud();
         message('TIME UP -100');
         newMission();
+      }
+    }
+
+    if (document.pointerLockElement === canvas) {
+      bonusSpawnTimer -= dt;
+      if (bonusSpawnTimer <= 0) {
+        if (bonusFlyers.filter(f => f.alive).length < 2) spawnBonusFlyer();
+        bonusSpawnTimer = 15 + Math.random() * 16;
+      }
+    }
+
+    for (let i = bonusFlyers.length - 1; i >= 0; i--) {
+      const f = bonusFlyers[i];
+      if (!f.alive) {
+        bonusFlyers.splice(i, 1);
+        continue;
+      }
+      f.root.position.x += f.dir * f.speed * dt;
+      if (f.rotor && !f.rotor.isDisposed()) f.rotor.rotation.y += dt * 20;
+      if (Math.abs(f.root.position.x) > 380) {
+        disposeBonusFlyer(f, null);
+        bonusFlyers.splice(i, 1);
       }
     }
 
@@ -517,6 +641,5 @@
   engine.runRenderLoop(() => scene.render());
   addEventListener('resize', () => { engine.resize(); clampFreeAim(); });
 
-  // Expose version for debugging / future UI use.
   window.STREET_SCOPE_VERSION = VERSION;
 })();
